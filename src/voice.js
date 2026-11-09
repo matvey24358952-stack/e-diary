@@ -11,6 +11,9 @@ export function isVoiceSupported() {
   return voicePlatform() !== 'none'
 }
 
+// Listeners of the previous recognition session; removed when a new one starts.
+let releasePrevious = null
+
 /**
  * Starts speech recognition.
  * Returns { stop() } or throws.
@@ -20,6 +23,15 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
   const platform = voicePlatform()
 
   if (platform === 'native') {
+    if (releasePrevious) {
+      try {
+        releasePrevious()
+      } catch {
+        /* ignore */
+      }
+      releasePrevious = null
+    }
+
     const perm = await SpeechRecognition.checkPermissions()
     if (perm.speechRecognition !== 'granted') {
       const req = await SpeechRecognition.requestPermissions()
@@ -28,24 +40,29 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
     const { available } = await SpeechRecognition.available()
     if (!available) throw new Error('unsupported')
 
+    let released = false
+    const cleanup = () => {
+      if (released) return
+      released = true
+      releasePrevious = null
+      try {
+        partial?.remove?.()
+        state?.remove?.()
+      } catch {
+        /* ignore */
+      }
+    }
+    releasePrevious = cleanup
+
     const partial = await SpeechRecognition.addListener('partialResults', (data) => {
       const text = data?.matches?.[0]
       if (text) onPartial?.(text)
     })
     const state = await SpeechRecognition.addListener('listeningState', (data) => {
-      if (data?.status === 'stopped') {
-        // Give the engine a moment to deliver the final transcript, then release listeners
-        setTimeout(() => {
-          cleanup()
-          onEnd?.()
-        }, 700)
-      }
+      // "stopped" means the engine finished capturing, but the final transcript
+      // may arrive a couple of seconds later, so listeners stay alive.
+      if (data?.status === 'stopped') onEnd?.()
     })
-
-    const cleanup = () => {
-      partial?.remove?.()
-      state?.remove?.()
-    }
 
     // Do not await start(): on Android it resolves when recognition finishes,
     // so the caller would not get a session handle while listening.
@@ -60,9 +77,10 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
         const match = res?.matches?.[0]
         if (match) onFinal?.(match)
       })
-      .catch(() => {
+      .catch((error) => {
+        const message = String(error?.message || error || '')
         cleanup()
-        onError?.('error')
+        onError?.(/permission|denied/i.test(message) ? 'denied' : 'error')
       })
 
     return {
@@ -75,7 +93,8 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
         } catch {
           /* already stopped */
         }
-        cleanup()
+        // Late transcript after a manual stop should still reach the field.
+        setTimeout(cleanup, 2000)
       }
     }
   }

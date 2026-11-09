@@ -80,6 +80,10 @@ async function toggleMic() {
         interim.value = ''
         voiceSession = null
         clearTimeout(voiceTimer)
+        const base = voiceBase
+        setTimeout(() => {
+          if (draft.content.trim() === base.trim()) emit('toast', t('voice.empty'))
+        }, 5000)
       },
       onError: (code) => {
         listening.value = false

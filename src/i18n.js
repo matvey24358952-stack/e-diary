@@ -84,7 +84,8 @@ const ru = {
     start: 'Голосовой ввод',
     unsupported: 'Голосовой ввод недоступен на этом устройстве',
     denied: 'Нет доступа к микрофону. Разрешите его в настройках.',
-    error: 'Не удалось распознать речь. Попробуйте ещё раз.'
+    error: 'Не удалось распознать речь. Попробуйте ещё раз.',
+    empty: 'Речь не распознана — проверьте микрофон и попробуйте снова'
   },
   notifications: {
     channel: 'Напоминания о дедлайнах',
@@ -181,7 +182,8 @@ const en = {
     start: 'Voice input',
     unsupported: 'Voice input is not available on this device',
     denied: 'Microphone access denied. Allow it in settings.',
-    error: 'Speech was not recognized. Please try again.'
+    error: 'Speech was not recognized. Please try again.',
+    empty: 'No speech recognized — check the microphone and try again'
   },
   notifications: {
     channel: 'Deadline reminders',
