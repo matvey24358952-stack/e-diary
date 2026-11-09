@@ -66,11 +66,13 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
 
     // Do not await start(): on Android it resolves when recognition finishes,
     // so the caller would not get a session handle while listening.
+    // partialResults: false — the final transcript comes back as the result of
+    // start(), which is more reliable than partial events on some devices.
     SpeechRecognition.start({
       language: lang,
       maxResults: 3,
       prompt: '',
-      partialResults: true,
+      partialResults: false,
       popup: false
     })
       .then((res) => {

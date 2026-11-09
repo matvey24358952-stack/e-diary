@@ -15,6 +15,12 @@ $env:JAVA_HOME = $jdk
 $env:ANDROID_HOME = $sdk
 $env:ANDROID_SDK_ROOT = $sdk
 $env:GRADLE_USER_HOME = Join-Path $root '.gradle'
+
+# Java on this machine cannot write to the user profile, so keep temp files inside the project.
+$env:TMP = Join-Path $root '.tmp'
+$env:TEMP = $env:TMP
+New-Item -ItemType Directory -Force -Path $env:TMP | Out-Null
+
 $env:PATH = "$jdk\bin;$sdk\platform-tools;$env:PATH"
 
 & $adb start-server | Out-Null
