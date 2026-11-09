@@ -40,6 +40,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Deadline reminders (Capacitor Local Notifications) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- USE_EXACT_ALARM is granted at install time, so reminders do not send the user to settings -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Voice input: the system speech recognition service must be visible to the app -->
     <queries>
         <intent>

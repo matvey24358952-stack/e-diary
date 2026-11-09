@@ -1,237 +1,137 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Capacitor } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
+import BottomNav from './components/BottomNav.vue'
+import NotesView from './components/NotesView.vue'
+import StatsView from './components/StatsView.vue'
+import NoteEditor from './components/NoteEditor.vue'
 import { loadNotes, saveNotes, loadLang, saveLang } from './storage'
-import { isVoiceSupported, startVoice } from './voice'
+import { computeStats, normalizeNote } from './utils/notes'
+import { syncReminders } from './notifications'
+import { useToast } from './composables/useToast'
 
 const { t, locale } = useI18n()
+const { toastText, show: toast } = useToast()
 
 const notes = ref([])
-const query = ref('')
+const tab = ref('today')
 const ready = ref(false)
-const toastText = ref('')
-let toastTimer = null
-
-const sheetOpen = ref(false)
+const now = ref(Date.now())
+const editorOpen = ref(false)
+const editorNote = ref(null)
 const isNew = ref(true)
-const draft = ref({ id: null, title: '', content: '', createdAt: 0, updatedAt: 0 })
-const textarea = ref(null)
+const digestOpen = ref(false)
+const digest = ref({ overdue: 0, today: 0 })
 
-const listening = ref(false)
-const interim = ref('')
-let voiceSession = null
-let voiceBase = ''
-let voiceTimer = null
-
-function toast(message) {
-  toastText.value = message
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => (toastText.value = ''), 2200)
-}
+let saveTimer = null
+let reminderTimer = null
 
 onMounted(async () => {
-  const savedLang = await loadLang()
-  locale.value = savedLang
-  document.documentElement.lang = savedLang
+  locale.value = await loadLang()
+  document.documentElement.lang = locale.value
   notes.value = await loadNotes()
   ready.value = true
+  refreshDigest()
+  syncReminders(notes.value)
+  setInterval(() => (now.value = Date.now()), 60000)
+
+  if (Capacitor.isNativePlatform()) {
+    CapApp.addListener('backButton', () => {
+      if (editorOpen.value) return closeEditor()
+      if (digestOpen.value) return (digestOpen.value = false)
+      if (tab.value !== 'today') return (tab.value = 'today')
+      CapApp.exitApp()
+    })
+  }
 })
 
-async function persist() {
-  await saveNotes(notes.value)
+watch(
+  notes,
+  () => {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => saveNotes(notes.value), 150)
+    clearTimeout(reminderTimer)
+    reminderTimer = setTimeout(() => syncReminders(notes.value), 1200)
+  },
+  { deep: true }
+)
+
+const stats = computed(() => computeStats(notes.value, now.value))
+
+function refreshDigest() {
+  const s = computeStats(notes.value, Date.now())
+  digest.value = { overdue: s.overdue, today: s.today }
+  digestOpen.value = s.overdue > 0 || s.today > 0
+}
+
+function showToday() {
+  digestOpen.value = false
+  tab.value = 'today'
 }
 
 function toggleLang() {
-  const next = locale.value === 'ru' ? 'en' : 'ru'
-  locale.value = next
-  document.documentElement.lang = next
-  saveLang(next)
+  locale.value = locale.value === 'ru' ? 'en' : 'ru'
+  document.documentElement.lang = locale.value
+  saveLang(locale.value)
 }
 
-const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return notes.value
-  return notes.value.filter(
-    (n) => (n.title || '').toLowerCase().includes(q) || (n.content || '').toLowerCase().includes(q)
-  )
-})
-
-function dayKey(ts) {
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-}
-
-const groups = computed(() => {
-  const list = [...filtered.value].sort((a, b) => b.updatedAt - a.updatedAt)
-  const result = []
-  let current = null
-  for (const note of list) {
-    const key = dayKey(note.updatedAt)
-    if (!current || current.key !== key) {
-      current = { key, label: dayLabel(note.updatedAt), items: [] }
-      result.push(current)
-    }
-    current.items.push(note)
-  }
-  return result
-})
-
-function dayLabel(ts) {
-  const now = new Date()
-  const d = new Date(ts)
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  const diff = Math.round((today - target) / 86400000)
-  if (diff === 0) return t('today')
-  if (diff === 1) return t('yesterday')
-  return new Intl.DateTimeFormat(locale.value === 'ru' ? 'ru-RU' : 'en-US', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).format(d)
-}
-
-function timeOf(ts) {
-  return new Intl.DateTimeFormat(locale.value === 'ru' ? 'ru-RU' : 'en-US', {
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(ts))
-}
-
-function preview(note) {
-  const text = (note.content || '').replace(/\s+/g, ' ').trim()
-  if (!text) return note.title ? '' : '—'
-  return text.length > 120 ? text.slice(0, 120) + '…' : text
+function blankNote() {
+  const ts = Date.now()
+  return normalizeNote({ createdAt: ts, updatedAt: ts })
 }
 
 function openNew() {
   isNew.value = true
-  draft.value = { id: null, title: '', content: '', createdAt: Date.now(), updatedAt: Date.now() }
-  sheetOpen.value = true
-  nextTick(() => textarea.value?.focus())
+  editorNote.value = blankNote()
+  editorOpen.value = true
 }
 
 function openEdit(note) {
   isNew.value = false
-  draft.value = { ...note }
-  sheetOpen.value = true
+  editorNote.value = { ...note }
+  editorOpen.value = true
 }
 
-async function closeSheet() {
-  await stopMic()
-  sheetOpen.value = false
+function closeEditor() {
+  editorOpen.value = false
+  editorNote.value = null
 }
 
-const canSave = computed(
-  () => draft.value.title.trim().length > 0 || draft.value.content.trim().length > 0
-)
-
-async function save() {
-  const title = draft.value.title.trim()
-  const content = draft.value.content.trim()
-  if (!title && !content) {
-    toast(t('noContent'))
-    return
-  }
-  await stopMic()
-  const now = Date.now()
+function saveNote(data) {
+  const ts = Date.now()
   if (isNew.value) {
-    notes.value.unshift({
-      id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
-      title,
-      content,
-      createdAt: now,
-      updatedAt: now
-    })
+    notes.value.unshift({ ...data, id: data.id || `${ts}-${Math.random().toString(36).slice(2, 8)}`, createdAt: ts, updatedAt: ts })
   } else {
-    const item = notes.value.find((n) => n.id === draft.value.id)
-    if (item) {
-      item.title = title
-      item.content = content
-      item.updatedAt = now
-    }
+    const index = notes.value.findIndex((n) => n.id === data.id)
+    if (index !== -1) notes.value[index] = { ...data, updatedAt: ts }
   }
-  await persist()
-  sheetOpen.value = false
-  toast(t('saved'))
+  closeEditor()
+  toast(t('messages.saved'))
 }
 
-async function remove(note) {
-  notes.value = notes.value.filter((n) => n.id !== note.id)
-  await persist()
-  sheetOpen.value = false
-  toast(t('deleted'))
+function deleteNote(id) {
+  notes.value = notes.value.filter((n) => n.id !== id)
+  closeEditor()
+  toast(t('messages.deleted'))
 }
 
-async function toggleMic() {
-  if (listening.value) {
-    await stopMic()
-    return
-  }
-  if (!isVoiceSupported()) {
-    toast(t('voiceUnsupported'))
-    return
-  }
-  voiceBase = draft.value.content
-  interim.value = ''
-  listening.value = true
-  clearTimeout(voiceTimer)
-  voiceTimer = setTimeout(() => {
-    if (listening.value) stopMic()
-  }, 30000)
-  try {
-    voiceSession = await startVoice({
-      lang: locale.value === 'ru' ? 'ru-RU' : 'en-US',
-      onPartial: (text) => {
-        interim.value = text
-        draft.value.content = joinText(voiceBase, text)
-      },
-      onFinal: (text) => {
-        interim.value = ''
-        draft.value.content = joinText(voiceBase, text)
-        voiceBase = draft.value.content
-      },
-      onEnd: () => {
-        listening.value = false
-        interim.value = ''
-        voiceSession = null
-        clearTimeout(voiceTimer)
-      },
-      onError: (code) => {
-        listening.value = false
-        voiceSession = null
-        clearTimeout(voiceTimer)
-        toast(code === 'not-allowed' || code === 'denied' ? t('voiceDenied') : t('voiceError'))
-      }
-    })
-  } catch (err) {
-    listening.value = false
-    voiceSession = null
-    clearTimeout(voiceTimer)
-    const code = String(err?.message || '')
-    toast(code === 'denied' ? t('voiceDenied') : t('voiceUnsupported'))
-  }
+function togglePin(note) {
+  note.pinned = !note.pinned
+  toast(note.pinned ? t('messages.pinnedOn') : t('messages.pinnedOff'))
 }
 
-function joinText(base, addition) {
-  const b = (base || '').trimEnd()
-  return b ? `${b} ${addition}` : addition
+function toggleStatus(note) {
+  note.status = note.status === 'done' ? 'active' : 'done'
+  toast(note.status === 'done' ? t('messages.completed') : t('messages.reopened'))
 }
 
-async function stopMic() {
-  const session = voiceSession
-  voiceSession = null
-  listening.value = false
-  interim.value = ''
-  clearTimeout(voiceTimer)
-  if (session) {
-    try {
-      await session.stop()
-    } catch {
-      /* ignore */
-    }
-  }
-}
+const headerSubtitle = computed(() => {
+  if (!ready.value) return t('subtitle')
+  if (stats.value.overdue > 0) return `${t('group.overdue')}: ${stats.value.overdue} · ${t('stats.active')}: ${stats.value.active}`
+  return `${t('stats.active')}: ${stats.value.active} · ${t('stats.todayTasks')}: ${stats.value.today}`
+})
 </script>
 
 <template>
@@ -247,111 +147,72 @@ async function stopMic() {
           </div>
           <div class="brand-text">
             <h1>{{ t('app') }}</h1>
-            <p>{{ t('subtitle') }}</p>
+            <p>{{ headerSubtitle }}</p>
           </div>
         </div>
         <button class="lang" type="button" :title="t('lang')" @click="toggleLang">
           {{ locale === 'ru' ? 'EN' : 'RU' }}
         </button>
       </div>
-
-      <label v-if="notes.length" class="search">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="11" cy="11" r="7" />
-          <path d="m20 20-3.2-3.2" />
-        </svg>
-        <input v-model="query" type="search" :placeholder="t('search')" />
-      </label>
     </header>
 
     <main class="content">
-      <div v-if="ready && !notes.length" class="empty">
-        <div class="empty-icon">
-          <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z" />
-            <path d="M8 7h8M8 11h8M8 15h5" />
-          </svg>
-        </div>
-        <h2>{{ t('empty') }}</h2>
-        <p>{{ t('emptyHint') }}</p>
-      </div>
+      <div v-if="!ready" class="loading"><span class="spinner"></span></div>
 
-      <div v-else-if="!filtered.length" class="empty small">
-        <p>{{ t('empty') }}</p>
-      </div>
-
-      <section v-for="group in groups" :key="group.key" class="group">
-        <h2 class="group-title">{{ group.label }}</h2>
-        <article v-for="note in group.items" :key="note.id" class="card" @click="openEdit(note)">
-          <div class="card-main">
-            <h3 v-if="note.title">{{ note.title }}</h3>
-            <p class="preview">{{ preview(note) }}</p>
-          </div>
-          <div class="card-side">
-            <time>{{ timeOf(note.updatedAt) }}</time>
-            <button class="icon-btn ghost" type="button" @click.stop="remove(note)" :aria-label="t('delete')">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
-              </svg>
-            </button>
-          </div>
-        </article>
-      </section>
+      <template v-else>
+        <NotesView
+          v-if="tab === 'today' || tab === 'all' || tab === 'search'"
+          :notes="notes"
+          :mode="tab"
+          :now="now"
+          @edit="openEdit"
+          @toggle-pin="togglePin"
+          @toggle-status="toggleStatus"
+        />
+        <StatsView v-else-if="tab === 'stats'" :notes="notes" :now="now" />
+      </template>
     </main>
 
-    <button class="fab" type="button" :aria-label="t('quick')" @click="openNew">
+    <button class="fab" type="button" :aria-label="t('actions.add')" @click="openNew">
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
         <path d="M12 5v14M5 12h14" />
       </svg>
     </button>
 
+    <BottomNav v-model="tab" />
+
+    <NoteEditor
+      v-if="editorOpen && editorNote"
+      :note="editorNote"
+      :is-new="isNew"
+      @save="saveNote"
+      @delete="deleteNote"
+      @close="closeEditor"
+      @toast="toast"
+    />
+
     <transition name="fade">
-      <div v-if="sheetOpen" class="overlay" @click.self="closeSheet">
-        <div class="sheet">
-          <div class="sheet-head">
-            <button class="icon-btn ghost" type="button" @click="closeSheet" :aria-label="t('close')">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-            <span class="sheet-title">{{ isNew ? t('newNote') : t('editNote') }}</span>
-            <button class="save-btn" type="button" :disabled="!canSave" @click="save">{{ t('save') }}</button>
+      <div v-if="digestOpen && ready" class="overlay digest-overlay" @click.self="digestOpen = false">
+        <div class="digest-card">
+          <div class="digest-icon">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 1 0 6 8c0 7-3 8-3 8h18s-3-1-3-8" />
+              <path d="M10.3 21a2 2 0 0 0 3.4 0" />
+            </svg>
           </div>
-
-          <input v-model="draft.title" class="title-input" type="text" :placeholder="t('titlePlaceholder')" />
-
-          <div class="editor">
-            <textarea
-              ref="textarea"
-              v-model="draft.content"
-              class="content-input"
-              :placeholder="t('contentPlaceholder')"
-              rows="8"
-            ></textarea>
-            <button
-              class="mic"
-              type="button"
-              :class="{ listening }"
-              :aria-label="listening ? t('stopVoice') : t('voiceStart')"
-              @click="toggleMic"
-            >
-              <svg v-if="!listening" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="2.5" width="6" height="11" rx="3" />
-                <path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-                <rect x="6" y="6" width="12" height="12" rx="2.5" />
-              </svg>
-            </button>
+          <h2>{{ t('digest.title') }}</h2>
+          <p class="digest-text">{{ t('digest.text') }}</p>
+          <div class="digest-rows">
+            <div v-if="digest.overdue" class="digest-row danger">
+              {{ t('digest.overdue', { count: digest.overdue }) }}
+            </div>
+            <div v-if="digest.today" class="digest-row">
+              {{ t('digest.today', { count: digest.today }) }}
+            </div>
           </div>
-
-          <p v-if="listening" class="listening-hint">
-            <span class="dot"></span>{{ t('listening') }}<em v-if="interim"> {{ interim }}</em>
-          </p>
-
-          <div class="sheet-foot">
-            <span class="meta">{{ draft.updatedAt ? timeOf(draft.updatedAt) : '' }}</span>
-            <span class="meta">{{ t('notes') }}: {{ notes.length }}</span>
+          <div class="digest-actions">
+            <button type="button" class="ghost-btn" @click="digestOpen = false">{{ t('digest.later') }}</button>
+            <button type="button" class="save-btn" @click="showToday">{{ t('actions.show') }}</button>
           </div>
         </div>
       </div>

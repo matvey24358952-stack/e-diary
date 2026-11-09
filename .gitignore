@@ -18,3 +18,5 @@ tools/
 .npm-cache/
 .gradle/
 .android/
+.tmp/
+.idea/

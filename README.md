@@ -1,90 +1,132 @@
-# Электронный ежедневник (Vue 3 + Capacitor)
+# Электронный ежедневник
 
-Мобильное приложение-ежедневник: заметки создаются, редактируются и удаляются, хранятся локально на устройстве, есть голосовой ввод в поле содержания и переключение языка RU/EN.
+Мобильное приложение-ежедневник по уставу проекта: заметки с тегами, приоритетами, дедлайнами и статусами, поиск, фильтры, группировка по датам, напоминания и статистика. Работает полностью локально, без сервера и авторизации.
 
-| Список | Голосовой ввод | English |
+**Стек:** Vue 3 · Vite · Capacitor 8 · vue-i18n · Capacitor Preferences · Capacitor Local Notifications · `@capacitor-community/speech-recognition`.
+
+| Сегодня | Все заметки | Редактор |
 |---|---|---|
-| ![Список заметок](docs/02-list.png) | ![Голосовой ввод](docs/03-voice.png) | ![English](docs/04-english.png) |
+| ![Сегодня](docs/01-today.png) | ![Все заметки](docs/02-all-notes.png) | ![Редактор](docs/05-editor.png) |
 
-## Что умеет
+| Поиск | Статистика | Напоминание при запуске |
+|---|---|---|
+| ![Поиск](docs/03-search.png) | ![Статистика](docs/04-stats.png) | ![Напоминание](docs/06-reminder.png) |
 
-- список заметок с группировкой по дням (Сегодня/Вчера/дата) и поиском;
-- создание, редактирование и удаление заметок;
-- локальное хранение (Capacitor Preferences → Android SharedPreferences / localStorage в браузере) — заметки сохраняются между запусками;
-- быстрый ввод: FAB «+» открывает шторку с полем содержания и кнопкой микрофона;
-- голосовой ввод: нативный плагин `@capacitor-community/speech-recognition` на Android, Web Speech API в браузере; распознанный текст подставляется в поле содержания (частичные результаты видны сразу);
-- интерфейс RU/EN, выбранный язык сохраняется.
+## Возможности (MVP по уставу)
 
-## Стек
+- **Заметки:** создание, редактирование, удаление; поля — заголовок, текст, тег, приоритет, дедлайн, статус, URL-ссылка, закрепление.
+- **Теги:** учёба, работа, личное, идеи. По умолчанию «личное», чипсы тегов в карточке и в редакторе.
+- **Приоритеты:** низкий, средний, высокий (по умолчанию средний), цветовая полоса слева в карточке.
+- **Дедлайны:** дата и время; просроченные активные заметки подсвечиваются красным.
+- **Статусы:** активная, выполнена, архив (по умолчанию активная).
+- **Закрепление:** закреплённые заметки всегда в отдельной группе сверху.
+- **Ссылка:** URL-вложение (файлы по уставу не поддерживаются).
+- **Группировка:** «Закреплённые», «Просрочено», «Сегодня», «Завтра», «На этой неделе», «Позже».
+- **Сортировка:** по дедлайну, по приоритету, по дате создания.
+- **Фильтры:** по статусу и по тегу.
+- **Поиск:** по заголовку, тексту и тегу.
+- **Напоминания:** диалог при запуске (просрочено / на сегодня) и локальные уведомления к дедлайну.
+- **Статистика:** активные, выполненные, просроченные, архив, процент выполнения, разрезы по тегам и приоритетам.
+- **Голосовой ввод** в поле содержания (нативный плагин на Android, Web Speech API в браузере).
+- **Локализация RU/EN** с сохранением выбранного языка.
 
-Vue 3 · Vite · Capacitor 8 · vue-i18n · Capacitor Preferences · @capacitor-community/speech-recognition.
+## Модель заметки
 
-## Запуск в браузере
+```json
+{
+  "id": "1794210477977-ab12cd",
+  "title": "Сдать отчёт по практике",
+  "content": "Собрать подписи и принести на кафедру",
+  "tag": "study",
+  "priority": "high",
+  "status": "active",
+  "due": 1794160800000,
+  "pinned": false,
+  "url": "https://university.example/practice",
+  "createdAt": 1794210477977,
+  "updatedAt": 1794209997977
+}
+```
+
+Хранение — Capacitor Preferences (JSON-массив в Android SharedPreferences / localStorage в браузере). Заметки старого формата мигрируют при загрузке: `normalizeNote` подставляет приоритет «средний», статус «активная», тег «личное», `due = null`.
+
+## Экраны
+
+- **Сегодня** — закреплённые и задачи по датам; чек-бокс отмечает выполнение, звезда закрепляет.
+- **Все заметки** — сортировка и фильтры по статусу и тегу.
+- **Поиск** — строка поиска по заголовку, тексту и тегу.
+- **Статистика** — счётчики и графики.
+- **Редактор** (шторка) — все поля заметки, микрофон, удаление.
+- Нижняя навигация из четырёх вкладок, FAB «+» для быстрого создания.
+
+## Напоминания
+
+- При запуске показывается диалог со счётчиками просроченных и задач на сегодня.
+- Нативные уведомления планируются на дедлайн (`@capacitor/local-notifications`, канал `reminders`), список пересобирается при каждом изменении заметок.
+- Разрешения: `POST_NOTIFICATIONS` (запрашивается системой при первом планировании), `USE_EXACT_ALARM` (выдаётся при установке — приложение не отправляет пользователя в настройки будильников), `VIBRATE`.
+- Если уведомления запрещены, приложение продолжает работать, остаётся диалог при запуске.
+
+## Запуск
 
 ```bash
 npm install
-npm run dev          # http://127.0.0.1:5173
+npm run dev            # http://127.0.0.1:5173
 ```
 
-Голосовой ввод в браузере работает в Chrome/Edge (Web Speech API) и требует разрешения на микрофон.
-
-## Сборка и запуск на Android
-
-Требования: JDK 17+ (проверено на JDK 21), Android SDK с platform-tools, build-tools 36 и платформой API 37.
+Сборка Android:
 
 ```bash
-npm run android:sync     # сборка веба + cap sync
-npm run android:apk      # сборка APK -> android/app/build/outputs/apk/debug/app-debug.apk
+npm run android:sync   # vite build + cap sync android
+npm run android:apk    # APK -> android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Установка на запущенный эмулятор:
+Установка на эмулятор/устройство:
 
 ```bash
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r app-debug.apk
 adb shell am start -n com.diary.app/.MainActivity
 ```
 
-Открыть проект в Android Studio:
+Готовая сборка лежит в корне: [`app-debug.apk`](app-debug.apk).
 
-```bash
-npm run android:open
-```
+Android Studio: открыть папку `android` (не корень проекта) и нажать Run. Либо `npm run android:open`.
 
-Эмулятор:
-
-```bash
-emulator -avd Medium_Phone_API_37.0
-```
-
-В Android Studio: **Device Manager → Medium_Phone_API_37.0 → ▶**, затем **Run 'app'**.
+Эмулятор: `emulator -avd Medium_Phone_API_37.0`.
 
 ## Окружение этой машины
 
 | Компонент | Состояние |
 |---|---|
-| Node.js / npm | 26.13.0 / 11.20.0 — установлены |
-| Git | 2.56.0 — установлен |
-| Android Studio | 2026.2.2 — установлена (`C:\Program Files\Android\Android Studio`) |
-| Android SDK | `E:\Android` (platform-tools 37.0.1, build-tools 36.0.0, platform android-37.0, system-image android-37.0 google_apis_playstore x86_64) |
-| AVD | `Medium_Phone_API_37.0` (Pixel-подобный, API 37, Play Store) |
-| Ускорение | WHPX установлен и работает (`emulator-check accel` → ok) |
-| JDK | на PATH был только JRE 1.8, поэтому скачан Temurin JDK 21 в `tools/jdk/jdk-21.0.13+9` |
+| Node.js / npm | 26.13.0 / 11.20.0 |
+| Git | 2.56.0 |
+| Android Studio | 2026.2.2 (`C:\Program Files\Android\Android Studio`) |
+| Android SDK | `E:\Android`: platform-tools 37.0.1, build-tools 36.0.0, platform android-37.0, образ android-37.0 google_apis_playstore x86_64 |
+| AVD | `Medium_Phone_API_37.0` (Play Store, x86_64) |
+| Ускорение | WHPX работает |
+| JDK | Temurin 21 в `tools/jdk/jdk-21.0.13+9` (на PATH был только JRE 1.8) |
 
 Особенности:
 
-- `winget` в этой сессии недоступен, JDK скачан напрямую с adoptium.net.
-- Android SDK доступен только на чтение, поэтому в проекте зафиксированы `compileSdk 37` и `buildToolsVersion 36.0.0` (`android/variables.gradle`), а библиотечные модули Capacitor получают ту же версию build-tools из `android/build.gradle`.
-- Debug-сборка подписывается локальным ключом `android/keystore/debug.keystore` (пароль `android`), чтобы не зависеть от `~/.android/debug.keystore`.
+- `winget` в сессии недоступен — JDK скачан напрямую с adoptium.net.
+- Android SDK доступен только на чтение, поэтому в `android/variables.gradle` зафиксированы `compileSdk 37` и `buildToolsVersion 36.0.0`; библиотечные модули Capacitor получают ту же версию из `android/build.gradle`.
+- Debug-подпись — локальный ключ `android/keystore/debug.keystore` (пароль `android`), чтобы сборка не зависела от `~/.android/debug.keystore`.
+- Gradle JDK для Android Studio задан в `android/.gradle/config.properties` (`java.home` → JDK 21), иначе студия берёт встроенный JBR 25, несовместимый с Gradle 8.14.3.
+- Java на этой машине не может писать в `C:\Users\matve`, поэтому кэш Gradle и дистрибутив лежат в `E:\DIarryApp\.gradle`, а переменная `GRADLE_USER_HOME` указывает туда (её выставляет `scripts/setup-env.ps1`). Без неё Android Studio падает с «Unable to start the daemon process».
 
-### Переменные окружения
+### Android Studio
 
-`ANDROID_HOME`, `ANDROID_SDK_ROOT` и `JAVA_HOME` не были прописаны в системе. Скрипт:
+1. `File → Open` → папка `E:\DIarryApp\android` (именно `android`, не корень).
+2. Убедиться, что в `Settings → Build, Execution, Deployment → Build Tools → Gradle` выбран JDK 21 (проект подставляет его сам).
+3. Нажать **Sync Project with Gradle Files** — синхронизация проходит без загрузок, из локального кэша.
+4. В списке устройств выбрать запущенный `Medium_Phone_API_37.0` и нажать **Run 'app'**.
+
+Переменные окружения:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\setup-env.ps1
 ```
 
-или вручную в текущей сессии:
+или в текущей сессии:
 
 ```powershell
 $env:ANDROID_HOME='E:\Android'
@@ -93,32 +135,42 @@ $env:GRADLE_USER_HOME='E:\DIarryApp\.gradle'
 $env:PATH="$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:PATH"
 ```
 
-## Голосовой ввод
-
-- Android: `SpeechRecognition.start({ partialResults: true })`; текст добавляется в конец поля содержания, частичные результаты обновляются на лету.
-- Разрешение `RECORD_AUDIO` объявлено в `android/app/src/main/AndroidManifest.xml`, сервис распознавания — в блоке `<queries>`.
-- Если на устройстве нет сервиса распознавания речи, показывается сообщение «Голосовой ввод недоступен».
-- Запись можно остановить повторным нажатием на микрофон; через 30 секунд она останавливается автоматически.
-
 ## Структура
 
 ```
 src/
-  App.vue        — экран списка, шторка быстрого ввода/редактирования
-  storage.js     — обёртка над Capacitor Preferences (JSON)
-  voice.js       — нативный плагин + Web Speech API
-  i18n.js        — сообщения RU/EN
-  style.css      — оформление
-android/         — нативный проект Capacitor
-scripts/         — вспомогательные скрипты окружения
-docs/            — скриншоты
+  App.vue                    — оболочка: вкладки, FAB, диалог напоминаний, обработка «Назад»
+  components/
+    NotesView.vue            — режимы «Сегодня» / «Все» / «Поиск», фильтры и сортировка
+    NoteCard.vue             — карточка заметки
+    NoteEditor.vue           — редактор со всеми полями и микрофоном
+    StatsView.vue            — статистика
+    BottomNav.vue            — нижняя навигация
+  utils/notes.js             — нормализация, группировка, сортировка, статистика
+  storage.js                 — Capacitor Preferences
+  notifications.js           — локальные уведомления к дедлайну
+  voice.js                   — нативный плагин + Web Speech API
+  i18n.js                    — RU/EN
+  style.css                  — оформление
+android/                     — нативный проект Capacitor
+scripts/setup-env.ps1        — переменные окружения
+docs/                        — скриншоты
 ```
 
-## Проверка на эмуляторе
+## Проверено на эмуляторе
 
-1. Запустить эмулятор и дождаться загрузки (`adb wait-for-device`, `adb shell getprop sys.boot_completed` → `1`).
-2. Установить APK и открыть приложение.
-3. Нажать «+», ввести текст, нажать микрофон (разрешить доступ к микрофону при запросе) — текст появится в поле содержания.
-4. Сохранить заметку, перезапустить приложение — заметка на месте.
+- создание заметки со всеми полями, сохранение и загрузка после `force-stop` и перезапуска;
+- группировка «Закреплённые / Просрочено / Сегодня / Завтра / На этой неделе / Позже», красная подсветка просроченных;
+- смена статуса на «Выполнена» убирает заметку из «Сегодня» и обновляет статистику;
+- фильтры по статусу и тегу, сортировка по дедлайну/приоритету/дате создания;
+- поиск по тексту (проверен запрос «отчёт»);
+- диалог напоминания при запуске с корректными счётчиками;
+- локальное уведомление к дедлайну реально пришло в системный трей (`NotificationRecord ... channel=reminders`);
+- голосовой ввод запускает системное распознавание (`RecognitionService#logStartListening`, `onMicrophoneOpened`) и подставляет текст в поле содержания;
+- переключение RU/EN сохраняется между запусками.
 
-Проверено на эмуляторе: создание, сохранение, перезапуск, редактирование, удаление, переключение RU/EN, запуск нативного распознавания речи (`RecognitionServiceImpl` получает запрос, микрофон открывается, UI показывает «Слушаю…»).
+## Ограничения
+
+- Вложения-файлы не поддерживаются — только URL (по уставу).
+- Поле дедлайна использует системный `datetime-local`, поэтому формат даты зависит от локали устройства.
+- Авторизации нет: данные хранятся только на устройстве.

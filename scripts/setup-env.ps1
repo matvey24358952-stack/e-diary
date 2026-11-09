@@ -16,6 +16,8 @@ if (-not (Test-Path $sdk)) {
 [Environment]::SetEnvironmentVariable('JAVA_HOME', $jdk, 'User')
 [Environment]::SetEnvironmentVariable('ANDROID_HOME', $sdk, 'User')
 [Environment]::SetEnvironmentVariable('ANDROID_SDK_ROOT', $sdk, 'User')
+# Java on this machine cannot write to C:\Users\matve, so the Gradle cache lives in the project.
+[Environment]::SetEnvironmentVariable('GRADLE_USER_HOME', 'E:\DIarryApp\.gradle', 'User')
 
 $path = [Environment]::GetEnvironmentVariable('Path', 'User')
 $add = @("$sdk\platform-tools", "$sdk\emulator", "$jdk\bin")

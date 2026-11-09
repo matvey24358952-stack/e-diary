@@ -1,4 +1,5 @@
 import { Preferences } from '@capacitor/preferences'
+import { normalizeNote } from './utils/notes'
 
 const NOTES_KEY = 'diary.notes.v1'
 const LANG_KEY = 'diary.lang.v1'
@@ -7,7 +8,7 @@ export async function loadNotes() {
   try {
     const { value } = await Preferences.get({ key: NOTES_KEY })
     const data = value ? JSON.parse(value) : []
-    return Array.isArray(data) ? data : []
+    return Array.isArray(data) ? data.map(normalizeNote) : []
   } catch {
     return []
   }
