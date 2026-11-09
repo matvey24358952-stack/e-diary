@@ -21,6 +21,7 @@ const listening = ref(false)
 const interim = ref('')
 let voiceSession = null
 let voiceBase = ''
+let voiceTimer = null
 
 function toast(message) {
   toastText.value = message
@@ -174,6 +175,10 @@ async function toggleMic() {
   voiceBase = draft.value.content
   interim.value = ''
   listening.value = true
+  clearTimeout(voiceTimer)
+  voiceTimer = setTimeout(() => {
+    if (listening.value) stopMic()
+  }, 30000)
   try {
     voiceSession = await startVoice({
       lang: locale.value === 'ru' ? 'ru-RU' : 'en-US',
@@ -190,16 +195,19 @@ async function toggleMic() {
         listening.value = false
         interim.value = ''
         voiceSession = null
+        clearTimeout(voiceTimer)
       },
       onError: (code) => {
         listening.value = false
         voiceSession = null
+        clearTimeout(voiceTimer)
         toast(code === 'not-allowed' || code === 'denied' ? t('voiceDenied') : t('voiceError'))
       }
     })
   } catch (err) {
     listening.value = false
     voiceSession = null
+    clearTimeout(voiceTimer)
     const code = String(err?.message || '')
     toast(code === 'denied' ? t('voiceDenied') : t('voiceUnsupported'))
   }
@@ -211,16 +219,18 @@ function joinText(base, addition) {
 }
 
 async function stopMic() {
-  if (voiceSession) {
+  const session = voiceSession
+  voiceSession = null
+  listening.value = false
+  interim.value = ''
+  clearTimeout(voiceTimer)
+  if (session) {
     try {
-      await voiceSession.stop()
+      await session.stop()
     } catch {
       /* ignore */
     }
   }
-  voiceSession = null
-  listening.value = false
-  interim.value = ''
 }
 </script>
 

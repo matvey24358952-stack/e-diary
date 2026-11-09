@@ -44,25 +44,31 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
       state?.remove?.()
     }
 
-    try {
-      const res = await SpeechRecognition.start({
-        language: lang,
-        maxResults: 3,
-        prompt: '',
-        partialResults: true,
-        popup: false
+    // Do not await start(): on Android it resolves when recognition finishes,
+    // so the caller would not get a session handle while listening.
+    SpeechRecognition.start({
+      language: lang,
+      maxResults: 3,
+      prompt: '',
+      partialResults: true,
+      popup: false
+    })
+      .then((res) => {
+        const match = res?.matches?.[0]
+        if (match) onFinal?.(match)
       })
-      const match = res?.matches?.[0]
-      if (match) onFinal?.(match)
-    } catch (e) {
-      cleanup()
-      throw e
-    }
+      .catch(() => {
+        cleanup()
+        onError?.('error')
+      })
 
     return {
       stop: async () => {
         try {
-          await SpeechRecognition.stop()
+          await Promise.race([
+            SpeechRecognition.stop(),
+            new Promise((resolve) => setTimeout(resolve, 1500))
+          ])
         } catch {
           /* already stopped */
         }
