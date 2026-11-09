@@ -95,7 +95,9 @@ async function toggleMic() {
         voiceSession = null
         clearTimeout(voiceTimer)
         const reason = String(code || '').toLowerCase()
-        if (reason.includes('permission') || reason.includes('denied')) voiceError.value = t('voice.denied')
+        if (reason.includes('permission') || reason.includes('denied') || reason.includes('not-allowed')) voiceError.value = t('voice.denied')
+        else if (reason.includes('audio-capture')) voiceError.value = t('voice.noMic')
+        else if (reason.includes('language')) voiceError.value = t('voice.language')
         else if (reason.includes('network')) voiceError.value = t('voice.network')
         else if (reason.includes('no match') || reason.includes('no speech')) voiceError.value = t('voice.empty')
         else voiceError.value = t('voice.error')

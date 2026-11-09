@@ -86,6 +86,8 @@ const ru = {
     denied: 'Нет доступа к микрофону. Разрешите его в настройках.',
     error: 'Не удалось распознать речь. Попробуйте ещё раз.',
     network: 'Нет связи с сервисом распознавания — проверьте интернет',
+    noMic: 'Браузер не видит микрофон. Проверьте настройки звука Windows и разрешение для сайта',
+    language: 'Этот язык не поддерживается распознаванием в браузере',
     empty: 'Речь не распознана — проверьте микрофон и попробуйте снова'
   },
   notifications: {
@@ -185,6 +187,8 @@ const en = {
     denied: 'Microphone access denied. Allow it in settings.',
     error: 'Speech was not recognized. Please try again.',
     network: 'No connection to the speech service — check your internet',
+    noMic: 'The browser cannot see a microphone. Check Windows sound settings and site permission',
+    language: 'This language is not supported by browser speech recognition',
     empty: 'No speech recognized — check the microphone and try again'
   },
   notifications: {
