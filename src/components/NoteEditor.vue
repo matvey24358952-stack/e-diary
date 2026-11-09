@@ -17,6 +17,7 @@ const draft = reactive({ ...props.note })
 const textarea = ref(null)
 const listening = ref(false)
 const interim = ref('')
+const voiceError = ref('')
 
 let voiceSession = null
 let voiceBase = ''
@@ -58,6 +59,7 @@ async function toggleMic() {
   }
   voiceBase = draft.content
   interim.value = ''
+  voiceError.value = ''
   listening.value = true
   clearTimeout(voiceTimer)
   voiceTimer = setTimeout(() => {
@@ -82,14 +84,22 @@ async function toggleMic() {
         clearTimeout(voiceTimer)
         const base = voiceBase
         setTimeout(() => {
-          if (draft.content.trim() === base.trim()) emit('toast', t('voice.empty'))
-        }, 5000)
+          if (draft.content.trim() === base.trim()) {
+            voiceError.value = t('voice.empty')
+            emit('toast', voiceError.value)
+          }
+        }, 4000)
       },
       onError: (code) => {
         listening.value = false
         voiceSession = null
         clearTimeout(voiceTimer)
-        emit('toast', code === 'not-allowed' || code === 'denied' ? t('voice.denied') : t('voice.error'))
+        const reason = String(code || '').toLowerCase()
+        if (reason.includes('permission') || reason.includes('denied')) voiceError.value = t('voice.denied')
+        else if (reason.includes('network')) voiceError.value = t('voice.network')
+        else if (reason.includes('no match') || reason.includes('no speech')) voiceError.value = t('voice.empty')
+        else voiceError.value = t('voice.error')
+        emit('toast', voiceError.value)
       }
     })
   } catch (err) {
@@ -97,7 +107,10 @@ async function toggleMic() {
     voiceSession = null
     clearTimeout(voiceTimer)
     const code = String(err?.message || '')
-    emit('toast', code === 'denied' ? t('voice.denied') : t('voice.unsupported'))
+    if (code === 'denied') voiceError.value = t('voice.denied')
+    else if (code === 'unsupported') voiceError.value = t('voice.unsupported')
+    else voiceError.value = t('voice.error')
+    emit('toast', voiceError.value)
   }
 }
 
@@ -161,6 +174,7 @@ async function stopMic() {
         <p v-if="listening" class="listening-hint">
           <span class="dot"></span>{{ t('voice.listening') }}<em v-if="interim"> {{ interim }}</em>
         </p>
+        <p v-else-if="voiceError" class="voice-error">{{ voiceError }}</p>
 
         <div class="field-group">
           <span class="field-label">{{ t('priority.label') }}</span>

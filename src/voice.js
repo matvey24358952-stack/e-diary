@@ -66,23 +66,23 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
 
     // Do not await start(): on Android it resolves when recognition finishes,
     // so the caller would not get a session handle while listening.
-    // partialResults: false — the final transcript comes back as the result of
-    // start(), which is more reliable than partial events on some devices.
+    // popup: true — Android shows its own "Speak now" dialog with a live level
+    // meter, so the user sees that the microphone is actually working.
     SpeechRecognition.start({
       language: lang,
       maxResults: 3,
       prompt: '',
       partialResults: false,
-      popup: false
+      popup: true
     })
       .then((res) => {
         const match = res?.matches?.[0]
         if (match) onFinal?.(match)
       })
       .catch((error) => {
-        const message = String(error?.message || error || '')
+        const message = String(error?.message || error || 'error')
         cleanup()
-        onError?.(/permission|denied/i.test(message) ? 'denied' : 'error')
+        onError?.(message)
       })
 
     return {

@@ -847,6 +847,16 @@ body {
   padding: 0 4px;
 }
 
+.voice-error {
+  margin: -4px 0 0;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #b91c1c;
+  background: #fff1f3;
+  border-radius: 10px;
+}
+
 .listening-hint em {
   color: var(--muted);
   font-style: normal;

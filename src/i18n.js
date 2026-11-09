@@ -85,6 +85,7 @@ const ru = {
     unsupported: 'Голосовой ввод недоступен на этом устройстве',
     denied: 'Нет доступа к микрофону. Разрешите его в настройках.',
     error: 'Не удалось распознать речь. Попробуйте ещё раз.',
+    network: 'Нет связи с сервисом распознавания — проверьте интернет',
     empty: 'Речь не распознана — проверьте микрофон и попробуйте снова'
   },
   notifications: {
@@ -183,6 +184,7 @@ const en = {
     unsupported: 'Voice input is not available on this device',
     denied: 'Microphone access denied. Allow it in settings.',
     error: 'Speech was not recognized. Please try again.',
+    network: 'No connection to the speech service — check your internet',
     empty: 'No speech recognized — check the microphone and try again'
   },
   notifications: {
