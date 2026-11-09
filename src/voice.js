@@ -34,8 +34,11 @@ export async function startVoice({ lang = 'ru-RU', onPartial, onFinal, onEnd, on
     })
     const state = await SpeechRecognition.addListener('listeningState', (data) => {
       if (data?.status === 'stopped') {
-        cleanup()
-        onEnd?.()
+        // Give the engine a moment to deliver the final transcript, then release listeners
+        setTimeout(() => {
+          cleanup()
+          onEnd?.()
+        }, 700)
       }
     })
 
