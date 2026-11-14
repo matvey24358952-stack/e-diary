@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { PRIORITIES, STATUSES, TAGS, PRIORITY_COLOR, TAG_COLOR } from '../constants'
 import { fromLocalInput, toLocalInput, formatDue } from '../utils/notes'
 import { isVoiceSupported, startVoice } from '../voice'
+import { loadVoiceLang, saveVoiceLang } from '../storage'
 
 const props = defineProps({
   note: { type: Object, required: true },
@@ -18,12 +19,24 @@ const textarea = ref(null)
 const listening = ref(false)
 const interim = ref('')
 const voiceError = ref('')
+// язык диктовки не зависит от языка интерфейса
+const voiceLang = ref('ru-RU')
 
 let voiceSession = null
 let voiceBase = ''
 let voiceTimer = null
 
-onMounted(() => nextTick(() => textarea.value?.focus()))
+onMounted(async () => {
+  const saved = await loadVoiceLang()
+  voiceLang.value = saved || (locale.value === 'ru' ? 'ru-RU' : 'en-US')
+  nextTick(() => textarea.value?.focus())
+})
+
+function toggleVoiceLang() {
+  voiceLang.value = voiceLang.value === 'ru-RU' ? 'en-US' : 'ru-RU'
+  saveVoiceLang(voiceLang.value)
+  if (listening.value) stopMic()
+}
 
 const canSave = computed(() => draft.title.trim().length > 0 || draft.content.trim().length > 0)
 
@@ -67,7 +80,7 @@ async function toggleMic() {
   }, 30000)
   try {
     voiceSession = await startVoice({
-      lang: locale.value === 'ru' ? 'ru-RU' : 'en-US',
+      lang: voiceLang.value,
       onPartial: (text) => {
         interim.value = text
         draft.content = joinText(voiceBase, text)
@@ -156,6 +169,14 @@ async function stopMic() {
             :placeholder="t('fields.contentPlaceholder')"
             rows="6"
           ></textarea>
+          <button
+            type="button"
+            class="voice-lang"
+            :title="t('voice.lang')"
+            @click.stop="toggleVoiceLang"
+          >
+            {{ voiceLang === 'ru-RU' ? 'RU' : 'EN' }}
+          </button>
           <button
             type="button"
             class="mic"

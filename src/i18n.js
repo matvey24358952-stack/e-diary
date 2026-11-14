@@ -80,6 +80,7 @@ const ru = {
   },
   voice: {
     listening: 'Слушаю…',
+    lang: 'Язык распознавания',
     stop: 'Остановить запись',
     start: 'Голосовой ввод',
     unsupported: 'Голосовой ввод недоступен на этом устройстве',
@@ -181,6 +182,7 @@ const en = {
   },
   voice: {
     listening: 'Listening…',
+    lang: 'Recognition language',
     stop: 'Stop recording',
     start: 'Voice input',
     unsupported: 'Voice input is not available on this device',
