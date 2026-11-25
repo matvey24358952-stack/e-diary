@@ -1,3 +1,5 @@
+**Онлайн-версия:** https://everyday-matrasss123.waw0.amvera.tech
+
 **Репозиторий:** https://github.com/matvey24358952-stack/e-diary
 
 # Электронный ежедневник
