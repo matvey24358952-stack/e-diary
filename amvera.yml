@@ -1,0 +1,9 @@
+meta:
+  environment: static_web
+  toolchain:
+    name: npm
+    version: "20"
+
+build:
+  artifacts:
+    "dist/*": /
